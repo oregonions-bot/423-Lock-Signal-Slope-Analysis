@@ -1,0 +1,55 @@
+# Andrew Lesak 9/9/21 - Notebook to get linear fits of lock signal & calculate RMS of noise
+
+import numpy as np
+import pandas as pd
+from scipy.stats import linregress
+from scipy import stats
+import matplotlib.pyplot as plt
+%matplotlib inline
+
+headers = ['Time', 'Amp']
+var=r'C:\Users\LASERSTATION\Desktop\423LockOpt\11-4-21\sig001-noNDfilter.csv'
+
+#conversion from time to freq axis (MHz/ms). Check semi-regularly
+#obtained using wavemeter and checking frequency at the extrema piezo voltages during the 50 ms scan. conv = Δf/50 ms
+conv = 26.64
+
+# full lock sig
+LockSigFull = pd.read_csv (var,sep = ';',header=0,usecols=[0,1],names=headers)   
+AmpFull = 1000*LockSigFull.Amp
+TimeFull = conv*LockSigFull.Time
+
+# select only linear portion of lock sig and fit
+# mannually find value for 'skip rows' so that data starting in linear region is only used
+# manually find value of 'nrows' such that entire linear region is selected  
+LockSigLin = pd.read_csv (var,sep = ';',header=0,usecols=[0,1],names=headers,skiprows=607,nrows=15
+                        )   
+AmpLin = 1000*LockSigLin.Amp
+TimeLin = conv*LockSigLin.Time
+
+# perform linear regression and find slope in mV/MHz
+LinReg = stats.linregress(TimeLin, AmpLin)
+print("Slope =",round(abs(LinReg.slope),3), "mV/MHz")
+
+# calculate lock point (determined by frequency at 0V crossing in linear region)
+LockPoint = -(LinReg.intercept/LinReg.slope)
+print("Lock Point =",round(LockPoint,3),"MHz")
+
+# calculate RMS of noise
+LockSigRMS = pd.read_csv (var,sep = ';',header=0,usecols=[0,1],names=headers,skiprows=0,nrows=200)  
+AmpRMS = 1000*LockSigRMS.Amp
+TimeRMS = conv*LockSigRMS.Time
+mean = np.mean(AmpRMS)
+RMS = np.sqrt(np.mean((AmpRMS-mean)**2))
+print("Noise Offset =",round(mean,3),"mV")
+print("Noise RMS =",round(RMS,3), "mV")
+print("Noise RMS/Slope =",round(abs(RMS/LinReg.slope),3),"MHz")
+
+
+plt.xlabel('f (MHz)')
+plt.ylabel('Amp (mV)')
+plt.plot(TimeFull, AmpFull, '.', label='')
+plt.plot(TimeLin, LinReg.intercept + LinReg.slope*TimeLin, 'r', label='fitted line')
+plt.plot(TimeRMS, mean+TimeRMS*0, 'black', label='RMS region')
+plt.legend()
+plt.show()
